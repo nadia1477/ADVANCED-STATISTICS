@@ -1,0 +1,503 @@
+---
+title: "Actividad 2: Analítica Descriptiva e Inferencial"
+author: "Nadia Sánchez"
+date: '`r format(Sys.Date(),"%e de %B, %Y")`'
+output:
+  html_document:
+    toc: yes
+    number_sections: yes
+    toc_depth: 2
+    toc_float: true 
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r load_libraries, include=FALSE}
+library(knitr)
+library(lubridate)
+library(VIM)
+library(stringr)
+library(psych)
+library(seqinr)
+library(dplyr)
+library(kableExtra)
+library(ggplot2)
+library(dplyr)
+```
+
+
+# Analítica descriptiva 2
+
+
+## Lectura del fichero 
+Leer el fichero ESTRADL_clean.csv. Validar que los datos leídos son correctos. Si no es así, realizar las
+conversiones oportunas.
+
+```{r lectura, echo=FALSE}
+# cargar datos
+archivo <- "ESTRADL_clean.csv" 
+datos <- read.csv(archivo, sep=",",  header = T)
+name.var <- names(datos)
+str(datos)
+dim( datos )
+```
+
+
+## Análisis descriptivo visual
+
+Representar de forma visual las variables del conjunto de datos y las distribuciones de sus valores. Escoged la
+representación más apropiada en cada caso.
+
+```{r}
+filas=dim(datos)[1]
+# Ethnic
+ggplot(data = datos[1:filas,],aes(x=Ethnic,fill=Id))+geom_bar()
+# Anykids 
+ggplot(data = datos[1:filas,],aes(x=Anykids,fill=Id))+geom_bar()
+#Area
+ggplot(data = datos[1:filas,],aes(x=Area,fill=Id))+geom_bar()
+
+```
+
+
+```{r convertir otros}
+resto <- sapply(datos,class)
+resto <- which(resto=="numeric" | resto=="integer")
+v.cuant <- resto 
+
+#
+par(mfrow=c(1,4))
+for (i in 1:8){
+  boxplot(datos[,v.cuant[i]], main=names(datos)[v.cuant[i]],col="gray")
+}
+
+```
+```{r}
+
+hist(datos$Agemenar, freq = FALSE, col = "lightcyan", ylim = c(0,1), main="Histograma Agemenar", xlab = "", ylab="Densidades")
+```
+
+# Edad de menarquia media de la población 
+**A partir de los datos de la muestra, se desea estimar la edad de menarquia media de las mujeres. En concreto,
+se desea estudiar si la edad de menarquia media de la población es de 14 años, o bien es inferior a 14 años.
+Para ello, realizar un contraste estadístico con un nivel de confianza del 98 %. Seguid los pasos que se indican
+a continuación.**
+
+**Nota: Los cálculos se deben realizar manualmente. No se pueden usar funciones de R que calculen directamente
+el intervalo de confianza. En cambio, sí se pueden usar funciones como qnorm, pnorm, qt y pt.**
+
+## Hipótesis nula y alternativa 
+
+Escribid la hipótesis nula y la hipótesis alternativa.
+
+$H_{0}:μEM = 14$
+
+$H_{1}:μEM < 14$
+
+Nivel de significación $\alpha= 0.02$
+
+## Método 
+**Indicad cuál es el método más apropiado para realizar este contraste, en función de las características de la
+muestra.**
+
+
+En este caso tenemos que el tamaño de la muestra es superior a 30,tratamos la muestra como un distribución normal. Debido a que no se conoce la desviación típica de la población se usa T-student.
+
+
+## Cálculos 
+Calcular el estadístico de contraste, el valor crítico y el valor p.
+
+Estadistico de contraste
+```{r}
+age_media <- mean(datos$Agemenar)
+age_n <- length(datos$Agemenar)
+
+error<-sqrt((1/(age_n-1))*sum((datos$Agemenar - age_media)**2))
+
+E_Con<- (age_media-14)/(error/sqrt(age_n))
+E_Con
+```
+
+Valor Critico
+
+```{r}
+v_critico <-qt(0.02, age_n-1,lower.tail = TRUE)
+
+v_critico
+```
+
+Valor P
+
+```{r}
+#valor p
+valor_p<-pt( E_Con, df = age_n -1, lower.tail=TRUE)
+valor_p
+```
+
+
+
+## Interpretación 
+
+El valor de p es 2.151844e-42, p es inferior al nivel de significancia (0.02) por tanto, podemos rechazar la hipótesis nula y aceptar la hipotesis alternativa: la edad de menarquia media de la población es inferior a 14 años.
+
+Como se observaba en el boxplot la edad de menarquia media se ubicaba en los 12 años lo cual es inferior a 14.
+
+# Intervalo de confianza de Estradiol 
+
+## Calcular el intervalo de confianza del 95% de la variable Estradiol 
+
+En base al teorema del límite central, para el cálculo del intervalo de confianza de la media, y muestras de tamaño superior a 30, podemos usar una distribución normal.
+
+```{r}
+#intervalo de confianza del 95% 
+n<-nrow( datos )
+alpha<-1-0.95
+
+#Error tipico
+error_T <- sd(datos$Estradl) / sqrt( n )
+error_T
+
+#Valor z
+z<-qnorm( 1-alpha/2 )
+z
+
+#Margen de error
+M_error<- z * error_T
+M_error
+
+
+#Intervalo
+c( mean(datos$Estradl) - M_error, mean(datos$Estradl)+ M_error )
+
+```
+
+
+
+## Interpretar el resultado 
+
+El intervalo de confianza obtenido de la variable **Estradiol** proporciona un estimador por intervalo de la media de la variable poblacional Estradiol, con un nivel de confianza del 95%. Lo que significa que el 95% de intervalos que se podrían construir a partir de las muestras estaran dentro del valor promedio real del Estradiol.
+
+
+## Comparar intervalos 
+***Si calculáramos el intervalo de confianza del 97 %, ¿cómo sería el intervalo de confianza en relación al calculado
+previamente?**
+
+Existiria una diferencia de aproximadamente 0.2 entre el intervalo al 95% y el intervalo al 97%. Al modificar el nivel de confianza al 97% se tiene un nivel mayor de confianza, por lo tanto tenemos mayor amplitud del intervalo.
+
+
+
+# Diferencias en el nivel de estradiol según etnia 
+**En la investigación médica, se han planteado un conjunto de hipótesis que se desean validar estadísticamente
+a partir de análisis inferencial. La primera hipótesis es que los niveles de estradiol en mujeres caucásicas
+es diferente del de las mujeres negras. ¿Qué dicen los datos al respecto? Seguid los pasos que se indican a
+continuación.**
+
+
+
+## Escribir la hipótesis nula y alternativa 
+
+$H_{0}:μ1 = μ2$
+
+
+$H_{1}:μ1 \neq μ2$
+
+$μ1:$ niveles de estradiol en mujeres caucásicas
+
+
+$μ2:$ niveles de estradiol en mujeres negras
+
+
+## Método 
+
+
+
+```{r}
+#COMPROBAR NORMALIDAD 
+par(mfrow=c(1,2))
+qqnorm(datos$Estradl[datos$Ethnic=="Caucasian"], main="Caucasian")
+qqline(datos$Estradl[datos$Ethnic=="Caucasian"])
+
+qqnorm(datos$Estradl[datos$Ethnic=="African American"], main="African American")
+qqline(datos$Estradl[datos$Ethnic=="African American"])
+
+
+```
+
+
+En este caso el plot Q-Q nos indican que los puntos se agrupan en torno a la recta. En un principio, visualmente se aprecia que nuestros datos cumplen el supuesto de normalidad. Dado que el tamaño de cada grupo es mayor que 30 se puede considerar que el t-test sigue siendo suficientemente robusto. 
+
+Por lo tanto, aplicamos un test de dos muestras independientes para la diferencia de las medias. Aplicamos el caso de datos normales, con varianza desconocida. El test es bilateral (dos colas)
+
+
+Para el supuesto de homogeneidad de varianzas la hipótesis nula es la varianza es constante en los diferentes grupos. Para decidir si aplicamos varianzas iguales o diferentes, aplicamos el test F.
+
+```{r}
+var.test(datos$Estradl[datos$Ethnic=="Caucasian"], datos$Estradl[datos$Ethnic=="African American"], alternative = "two.sided")
+```
+
+Con un p-value = 0.3432, mayor de 0.05, suponemos homogeneidad de varianzas. Por lo tanto, aplicamos test t de dos muestras independientes para la diferencia de medias, varianzas desconocidas e iguales. El test es bilateral.
+
+
+## Cálculos
+**Realizar los cálculos para validar o rechazar la hipótesis de la investigación, con un nivel de confianza del
+95 %. Calcular: el estadístico de contraste, el valor crítico y el valor p.**
+
+```{r}
+#MUJERES NEGRAS
+Africa <- datos[datos$Ethnic=="African American",]
+nAfrica<-nrow(Africa)
+meanAfrica<-mean(Africa$Estradl)
+sdAfrica <- sd( Africa$Estradl)
+
+#MUJERES BLANCAS 
+Caucasian <- datos[datos$Ethnic=="Caucasian",]
+nCauc<-nrow(Caucasian)
+meanCauc<-mean(Caucasian$Estradl)
+sdCauc<- sd( Caucasian$Estradl)
+
+#
+
+s <-sqrt( ((nAfrica-1)*sdAfrica^2 + (nCauc-1)*sdCauc^2 )/(nAfrica+nCauc-2) )
+Sb <- s*sqrt(1/nAfrica + 1/nCauc)
+t <- (meanAfrica-meanCauc)/ Sb
+t
+
+```
+
+```{r}
+alfa <- (1-0.95) 
+tcritical <- qt( alfa/2, df=nAfrica+nCauc-2, lower.tail=FALSE )
+tcritical
+#two-sided
+pvalue<-pt( abs(t), df=nAfrica+nCauc-2, lower.tail=FALSE )*2
+pvalue
+
+info<-data.frame(nAfrica,meanAfrica,sdAfrica,nCauc,meanCauc,sdCauc,t,tcritical,pvalue)
+info %>%   kable() %>%   kable_styling()
+```
+
+```{r}
+#Comprobación t-test:
+t.test(Africa$Estradl, Caucasian $Estradl, conf.level=0.95, paired=FALSE, var.equal=TRUE, alternative="two.sided" )
+```
+
+```{r}
+
+boxplot(Estradl~Ethnic, datos, main="Estradl")
+
+```
+
+En el boxplot se logra apreciar diferencias notables en los niveles de estradiol de las mujeres segmentadas por etnia.
+
+## Interpretar 
+
+El valor de p es 0.0006222197 y es inferior a alfa = 0.05 y por tanto, podemos rechazar la hipótesis nula y aceptar la hipotesis alternativa que los niveles de estradiol en mujeres caucásicas es diferente del de las mujeres negras, como se observó en el boxplot existen diferencias significativas en el nivel de estradiol según la etnia. Por lo tanto, los investigadores medicos tienen razón.
+
+
+# Nivel de estradiol según los hijos
+
+**A continuación, se desea evaluar si existen diferencias en el nivel de estradiol de las mujeres según si han tenido hijos o no. Es decir, se podría afirmar que el nivel de estradiol es inferior en las mujeres que han tenido hijos, con un nivel de confianza del 95 %? ¿Y con un nivel de confianza del 90%? **
+
+## Escribir la hipótesis nula y alternativa 
+
+$H_{0}:μ1 >= μ2$
+
+$H_{1}:μ1 < μ2$
+
+
+
+$μ1:$ niveles de estradiol en mujeres con hijos
+
+$μ2:$ niveles de estradiol en mujeres sin hijos
+
+
+
+## Método 
+
+```{r}
+#COMPROBAR NORMALIDAD 
+par(mfrow=c(1,2))
+qqnorm(datos$Estradl[datos$Anykids=="Yes"], main="Yes")
+qqline(datos$Estradl[datos$Anykids=="Yes"])
+
+qqnorm(datos$Estradl[datos$Anykids=="No"], main="No")
+qqline(datos$Estradl[datos$Anykids=="No"])
+
+
+```
+
+En este caso aplicamos, test de dos muestras sobre la diferencia de medias. Aplicamos el caso de muestras grandes no normales ya que las muestras son superiores a 30. El test es bilateral (dos colas)
+
+## Cálculos 
+
+```{r}
+#con hijos
+Con_hijos<- datos[datos$Anykids=="Yes",]
+nY<-nrow(Con_hijos)
+meanY<-mean(Con_hijos$Estradl)
+sdY <- sd( Con_hijos$Estradl)
+c(meanY, sdY)
+
+```
+
+```{r}
+#MUJERES sin hijos
+Sin_hijos<- datos[datos$Anykids=="No",]
+nNo<-nrow( Sin_hijos )
+meanNo<-mean(Sin_hijos$Estradl)
+sdNo <- sd( Sin_hijos$Estradl)
+c(meanNo, sdNo)
+
+```
+
+
+```{r}
+S <- sqrt( sdY^2/nY + sdNo^2/nNo)
+z <- (meanY-meanNo)/ S
+z
+
+```
+
+### 95%
+```{r}
+alfa <- (1-0.95) 
+zcritical <- qnorm( alfa, lower.tail=FALSE )
+zcritical
+#two-sided
+pvalue<-pnorm( abs(z), lower.tail=FALSE )
+pvalue
+
+info<-data.frame(nY,meanY,sdY,nNo,meanNo,sdNo,z,zcritical,pvalue)
+info %>%   kable() %>%   kable_styling()
+```
+
+### 90%
+```{r}
+alfa <- (1-0.90) 
+zcritical <- qnorm( alfa, lower.tail=FALSE )
+zcritical
+#two-sided
+pvalue<-pnorm( abs(z), lower.tail=FALSE )
+pvalue
+
+info<-data.frame(nY,meanY,sdY,nNo,meanNo,sdNo,z,zcritical,pvalue)
+info %>%   kable() %>%   kable_styling()
+```
+
+
+
+
+## Interpretación 
+
+El valor p del test es mayor a 0.05 para el 95%  y a 0.1 para el 90% . Por tanto concluimos que los medios se han mantenido esencialmente sin cambios (aceptamos la hipótesis nula $H_{0}$. Por lo tanto podemos  afirmar que el nivel de estradiol es superior en las mujeres que han tenido hijos, con el 95% y 90% de nivel de confianza, respectivamente.
+
+
+# Estudio longitudinal: ¿estradiol aumenta con los años? 
+
+**Los investigadores del estudio encontraron que existía una posible correlación entre la edad de las mujeres y
+el nivel de estradiol. Por ello, realizaron un estudio longitudinal con una muestra reducida de mujeres. En un grupo de 10 mujeres voluntarias de la muestra original, se midió los niveles de estradiol al cabo de 7 años. El fichero ESTRAD7.csv recoge esta medida. Concretamente, el fichero contiene el identificador de la mujer, el nivel de estradiol original y su nivel de estradiol medido al cabo de 7 años del estudio original. La hipótesis
+de la investigación es que estradiol aumenta con la edad. ¿Qué dicen los datos en relación a esta hipótesis?
+¿Podemos afirmar que aumenta el nivel de estradiol con un nivel de confianza del 97 %?**
+
+```{r}
+ESTRADL7 <- read.csv("ESTRADL7.csv")
+str(ESTRADL7)
+```
+
+```{r}
+boxplot(ESTRADL7$Estrad ,ESTRADL7$Estradl7,names=c("Estradl","Estradl 7"),   horizontal=TRUE,  col=c("red","yellow"), main="Estradl vs Estradl 7 YEARS")
+```
+
+
+##Escribir la hipótesis nula y alternativa 
+
+$H_{0}:μ1 = μ2$
+
+$H_{1}:μ1 > μ2$
+
+
+
+$μ1:$ niveles de estradiol luego de 7 años
+
+$μ2:$ niveles de estradiol  inicial
+
+
+
+
+## Asunción de normalidad 
+
+
+```{r}
+#COMPROBAR NORMALIDAD 
+par(mfrow=c(1,2))
+qqnorm(ESTRADL7$Estrad )
+qqline(ESTRADL7$Estrad )
+
+qqnorm(ESTRADL7$Estradl7 )
+qqline(ESTRADL7$Estradl7 )
+
+
+```
+```{r}
+shapiro.test(ESTRADL7$Estrad)
+shapiro.test(ESTRADL7$Estradl7)
+
+```
+
+Con el gráfico Q-Q se hace una primera aproximación visual, y con el test de Shapiro-Wilk se realiza el contraste para normalidad, en base a esto determinamos que nuestros datos no cumplen el supuesto de normalidad.
+
+## Método 
+
+En este caso tenemos dos muestra relacionadas, por lo tanto empleamos un test no paramétrico como el test de rangos y signos de Wilcoxon: https:
+//www.r-bloggers.com/wilcoxon-signed-rank-test/ para muestras dependientes. El test Wilcoxon ignora valores extremos y trabaja con medianas. 
+
+## Cálculo e interpretación 
+
+**Aplicad el contraste e interpretar el resultado. Podéis usar funciones R (no desarrolléis los cálculos en este
+apartado).**
+
+```{r}
+# test de Wilcoxon
+wilcox.test( ESTRADL7$Estradl7, ESTRADL7$Estrad, paired=TRUE,alternative="greater")
+
+```
+
+
+El valor p del test de suma de rangos de Wilcoxon es mayor a 0.03, permitiendo aceptar la hipótesis nula que el nivel de estradiol no aumenta con los años.
+V=30 Corresponde a la suma de los rangos asignados a las diferencias con signo positivo
+
+## Explicar el test escogido 
+
+**Explicar brevemente cómo se calcula el test que habéis escogido en el apartado anterior. La explicación no debe ser en base a un código, sino en vuestras propias palabras. Tratad de ser claros y concisos en la
+explicación**
+
+El test de rangos con signo de Wilcoxon es una prueba no paramétrica para comparar el rango medio de dos muestras relacionadas y determinar si existen diferencias entre ellas. 
+Primero calcula la diferencia de cada par de observaciones, se asigna al valor absoluto de cada diferencia un número de posición, para la asignación de posiciones se ignoran las diferencias que sean 0. El estadístico W se calcula el minimo entre la suma de rangos con signo positivo y negativo, al obtener el valor W se calcula cuál es la probabilidad de que adquiera valores igual o más extremos que el observado (pvalue). 
+
+
+# Conclusiones
+
+Para realizar el contraste de hipótesis de dos muestras en primer lugar debe explorarse las variables para combrobar su distribución, lo que permitira decidir entre un test paramétrico y no paramétrico. Luego se realiza una evaluación inferencial para deducir si la muestra es independiente o apareada, si el testes bilateral o unilateral.
+
+*Test paramétricos y no paramétricos:* los test paramétricos son utilizados en el caso de asunción de normalidad sobre los datos, es decir si los datos siguen una distribución normal, o podemos aplicar el teorema de limite central para muestras grandes. En caso contrario aplicamos test no paramétricos. Como por ejemplo el test de rangos con signo de Wilcoxon.
+
+*Test de dos muestras independientes o apareadas:* El test de muestras independientes proviene de dos muestras diferentes, como el caso del apartado 4 diferencia de estradiol según etnia, o el caso de nivel de estradiol según los hijos. En el caso de test de dos muestras apareadas proviene de muestras del mismo individuo en diferente tiempo como el caso del apartado 6. 
+
+*Test bilaterales o unilaterales:* Cuando la hipotesis alternativa testea la diferencia el test es bilateral. En el caso de testear si es mayor o menor, el test es unilateral (por la derecha o por la izquierda, respectivamente). Los cálculos del valor p cambian dependiendo si el test es bilateral o unilateral.
+
+
+# Referencias
+
+https://rpubs.com/Jo_/contrastes_hipotesis_ttest
+
+https://rpubs.com/diegotriana11/analisis_descriptivo_inferencial
+
+https://www.r-bloggers.com/wilcoxon-signed-rank-test/ 
+
+
+
+
+
+
