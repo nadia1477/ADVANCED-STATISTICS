@@ -1,0 +1,599 @@
+---
+title: 'Actividad 1: Preprocesamiento de los datos'
+author: "Nadia Sánchez"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r load_libraries, include=FALSE}
+#Librerias 
+library(knitr)  
+library(lubridate)
+library(VIM)
+library(stringr)
+library(psych)
+library(seqinr)
+library(dplyr)
+library(Rcpp)
+```
+
+
+```{r lectura, echo=FALSE}
+# cargar datos
+archivo <- "DataEstradiol.csv" 
+datos <- read.csv(archivo, sep=";",  header = T)
+name.var <- names(datos)
+str(datos)
+```
+
+
+```{r chunck1.1, eval=FALSE, echo=FALSE}
+# leer datos
+kable(names(datos))
+toString(names(datos))
+
+```
+****
+# Carga del fichero
+****
+
+Al abrir el archivo con un editor de texto sencillo como el bloc de notas observamos que ";" es el símbolo separador y el punto corresponde al valor decimal. Por lo tanto, hay que leer el fichero con la función `read.csv()`.
+
+El conjunto de datos a tratar porvienen del estudio de la relación entre la obesidad y el cáncer de mama en mujeres premenopáusicas. Los datos registrados de las mujeres en edad premenopáusica fueron: etnia, area (rural, urbana), número de hijos, edad de la mujer, edad a la que la mujer ha tenido el primer hijo, edad de la menarquia (primera menstruación), medida del estradiol (analítica hormonal), medida de la adiposidad general que corresponde al ratio peso(kg)/Altura2(m), medida de la adiposidad abdominal que corresponde al ratio cintura/cadera.
+
+El archivo se denomina *`r archivo`*, contiene `r nrow(datos)` registros y `r ncol(datos)` variables. Estas variables son: `r toString(names(datos))`
+
+
+****
+# Breve inspección de los datos
+****
+```{r }
+var.factor <- c(3,7,11)
+var.integer <- c(1,5)
+var.numeric <- c(2,4,6,8,9,10)
+var.tipo <- vector(mode="character",length=ncol(datos))
+var.tipo[var.factor] <- "character"
+var.tipo[var.integer] <- "integer"
+var.tipo[var.numeric] <- "numeric"
+```
+
+Son variables cualitativas nominales: `r toString(name.var[var.factor])`
+
+Son variables cuantitativas discretas: `r toString(name.var[var.integer])`
+
+Son variables cuantitativas continuas: `r toString(name.var[var.numeric])`
+
+
+****
+# Formato de las variables cuantitativas 
+****
+La lectura del fichero con la función `read.csv()` ha realizado la siguiente asignación a cada variable cuantitativa
+
+```{r asignacion}
+formato <- sapply(datos,class)
+
+kable(data.frame(variables=names(formato[-c(3,7,11)]),clase=as.vector(formato[-c(3,7,11)])))
+
+var_error <- name.var[formato != var.tipo]
+```
+
+```{r}
+var_error <- name.var[formato != var.tipo]
+var_error
+```
+
+Por tanto, las variables  con asignación equivocada y que es necesario corregir son:
+`r toString(var_error[-c(4,8)])`
+
+La asignación a realizar es:
+
+
+```{r}
+tipo <- var.tipo[names(datos) %in% var_error]
+
+kable(data.frame(variables= var_error[-c(4,8)], clase= tipo[-c(4,8)]), 
+      caption = "Variables cuantitativas con asignación de clase erronea")
+
+```
+
+****
+## Corregir errores de las variables cuantitativas con confusión de separador decimal
+****
+
+Las variables que tienen confusión con el separador decimal son *`r var_error[1]`*, *`r var_error[2]`*,*`r var_error[4]`*,*`r var_error[5]`*,,*`r var_error[6]`*.
+Ahora se cambiar?n las "," por el valor ".", el sumario de los valores de las variables es:
+
+
+
+```{r }
+#Cambiar "," por "."" 
+
+separador <- var_error[-c(3,4,8)]
+
+for(i in 1:5){
+datos[,separador[i]] <-  as.numeric( sub(",","\\.",datos[,separador[i]]) )
+}
+
+summary(datos[,separador])
+
+```
+
+
+
+****
+## Convertir las variables Estradl, Entage, Agefbo, Agemenar, BMI, WHR en tipo numérico
+
+****
+
+Las variables Estradl, Entage, Agemenar, BMI, WHR fueron convertidas en tipo numérico en el paso anterior.
+
+```{r convertir}
+datos[,"Agefbo"] <-  as.numeric(datos[,"Agefbo"])
+```
+
+Ahora podemos verificar que las variables `r toString(var_error[-c(4,8)])` son del tipo  **`r toString(sapply(datos[,var_error[-c(4,8)]],class))`**, respectivamente.
+
+****
+# Valores extremos
+****
+valores extremos (outliers) en la variable Estradiol
+
+```{r convertir extremos}
+boxplot(datos$Estradl, main= "Estradiol", col= "orange", border = "brown", horizontal = TRUE)
+boxplot.stats(datos$Estradl)
+```
+
+En la gráfica se observa la presencia de valores atipicos extremos.
+
+
+****
+## Eliminar valores extremos
+****
+Calculamos los valores extremos de la variable Estradiol, a partir de la normalización de dicha variable y se consideran como valores atípicos las observaciones que se encuentren a  más de 3 desviaciones estándar del promedio
+
+```{r estradiol}
+zx<- (datos$Estradl-mean(datos$Estradl))/sd(datos$Estradl)
+#indice donde se encuentran los valores extremos
+which(abs(zx)>3)
+# Valores extremos
+datos$Estradl[which(zx>3)]
+#Eliminar valores 
+datos <- datos[-c(which(abs(zx)>3)),]
+#Diagrama de caja con valores finales
+boxplot(datos$Estradl, main= "Estradiol", col= "orange", border = "brown", horizontal = TRUE)
+
+```
+
+
+****
+# Valores del resto de variables cuantitativas
+****
+
+****
+## Presentar un boxplot para cada variable cuantitativa
+****
+
+```{r convertir otros}
+resto <- sapply(datos,class)
+resto <- which(resto=="numeric" | resto=="integer")
+v.cuant <- resto[-c(2,6,10)] 
+
+#
+par(mfrow=c(2,4))
+for (i in 1:7){
+  boxplot(datos[,v.cuant[i]], main=names(datos)[v.cuant[i]],col="gray")
+}
+
+
+```
+
+```{r conv}
+# Outlier values
+vars.cuantitativas <- v.cuant
+for(i in 1:length(vars.cuantitativas) ) {
+
+  kk <- boxplot.stats(datos[,vars.cuantitativas[i]])$out
+  cat(names(datos)[vars.cuantitativas[i]],":", toString(kk), "\n" )
+  
+}
+
+```
+
+Las variables con valores extremos son:  Numchild, Agefbo, Agemenar, BMI, WHR.
+
+En el caso de las variables: **Numchild**, **Agefbo**, **Agemenarde** al tener un valores "99","9"son considerados como un valor centinela, por esta razón sustituimos estos valores por NA.
+En estos casos los valores centinelas que son detectados como valor atípico corresponden a valores perdidos (missing). 
+El resto de variables presentan valores atípicos que no se pueden considerar erróneos.
+
+```{r }
+val.centinela <- 99
+# Sustituir el valor centinela por NA
+datos$Agefbo[datos$Agefbo== val.centinela]<- NA
+ # verificar resultado
+ summary(datos$Agefbo)
+ 
+ #Agemenar
+ # Sustituir el valor centinela por NA
+datos$Agemenar[datos$Agemenar== val.centinela]<- NA
+ # verificar resultado
+ summary(datos$Agemenar)
+ 
+ #Numchild
+ # Sustituir el valor centinela por NA
+datos$Numchild[datos$Numchild== 9]<- NA
+ # verificar resultado
+ summary(datos$Agemenar)
+ 
+```
+
+
+****
+# Inconsistensias 
+****
+
+## Variables Numchild y Anykids.
+
+
+La inconsistencia se produce cuando Anykids es igual a 0 y Numchild es mayor a 0, ó si Numchild es mayor 0 y Anykids mayor a 1.El criterio de corrección es asignar el valor de 1 a Anykids.
+
+### Caso 1 Anykids = 0 y Numchild > 0
+
+```{r}
+# find wrong values
+kk <- which(datos$Anykids == 0 & datos$Numchild > 0)
+```
+
+Han aparecido `r length(kk)` individuos con esta inconsistencia.
+
+### Caso 2 Anykids > 1 y Numchild == 0
+
+```{r}
+# find wrong values
+kk <- which(datos$Anykids > 1 & datos$Numchild > 0)
+```
+
+Han aparecido `r length(kk)` individuos con esta inconsistencia.
+
+
+```{r}
+kable(t(datos[kk,c(5,7)]))
+```
+
+El siguiente paso es corregirlo:
+
+El valor a ajustar es el de Anykids, ya que tiene valores mayores a 1, estos valores los pasan a ser igual a 1 que significa que tiene hijos, ya que el número de hijos es mayor a 0.
+
+```{r}
+datos[kk,7]<- 1 
+```
+
+
+
+
+****
+## Variables Entage y Agemenarq.
+****
+La inconsistencias entre Entage y Agemenar se produce si Agemenarq es superior a EntAge, probablemente se debe a un error al introducir los datos y por tanto, hay que intercambiar los valores
+
+```{r}
+# find wrong values
+kk <- which(datos$Entage < datos$Agemenar  )
+
+```
+
+Han aparecido `r length(kk)` individuos con esta inconsistencia.  
+
+Y los valores inconsistentes son:
+
+```{r}
+kable(t(datos[kk,c(4,8)]))
+```
+
+
+El siguiente paso es corregirlo:
+
+
+```{r}
+swap(datos[kk,4],datos[kk,8])
+
+```
+
+Y para comprobar la correción volvemos hacer la comprobación:
+
+```{r}
+kable(t(datos[kk,c(4,8)]))
+
+```
+
+Donde vemos que no existe ningún registro.
+
+****
+## Variables Agefbo, Agemenarq y Numchild.
+****
+Agefbo debe ser superior a Agemenar si la mujer ha tenido algún hijo. Toma el valor 0 en caso
+contrario.
+
+### Caso:1 Agefbo > Agemenar
+
+```{r}
+# find wrong values
+kk <- which(datos$Agefbo > datos$Agemenar & datos$Numchild == 0 )
+```
+
+Han aparecido `r length(kk)` individuos con esta inconsistencia. Los registros son: `r toString(kk)` 
+
+Y los valores inconsistentes son:
+
+```{r}
+kable(t(datos[kk,c(5,6,8)]))
+
+```
+
+El siguiente paso es corregirlo:
+
+
+```{r}
+datos[kk,6] <- 0
+```
+
+### Caso:2 Agefbo < Agemenar
+
+```{r}
+# find wrong values
+kk <- which(datos$Agefbo < datos$Agemenar & datos$Numchild == 0 & datos$Agefbo > 0)
+
+```
+
+
+Han aparecido `r length(kk)` individuos con esta inconsistencia. Los registros son: `r toString(kk)` 
+
+Y los valores inconsistentes son:
+
+```{r}
+kable(t(datos[kk,c(5,6,8)]))
+
+```
+
+
+El siguiente paso es corregirlo:
+
+
+```{r}
+datos[kk,6] <- 0
+```
+
+
+
+****
+# Formato de las variables cualitativas 
+****
+Estandarizar/normalizar las variables cualitativas, según los criterios establecidos.
+
+## Variable Ethnic 
+Se estandarizan en "African American" y "Caucasian".
+
+El primer paso es mostrar la tabla con los valores de las diferentes etnias registradas y sus frecuencias. De
+esta manera se pueden observar si existe algunos problemas.
+
+```{r}
+
+table(datos$Ethnic)
+
+```
+
+1. Quitar espacios antes y después de cada valor observado. El resultado es:
+
+```{r}
+kk <- trimws( datos$Ethnic )
+table(kk )
+```
+
+2. Pasar a formato título los valores observados. El resultado es:
+
+```{r}
+kk <- str_to_title(kk)
+table(kk)
+```
+
+3.Cambiamos 
+
+```{r}
+kk <- sub("Af Am","African American",kk)
+kk <- sub("Caucacian","Caucasian",kk)
+kk <- sub("Caucsian","Caucasian",kk)
+# Update
+datos$Ethnic <-as.factor(kk)
+
+```
+
+Para comprobar los cambios se presenta la tabla de frecuencias.
+
+```{r}
+table(datos$Ethnic)
+```
+
+
+## Variable Anykids
+
+Se estandarizan en "Yes" (valor 1 en el archivo), y "No" (valor 0).
+
+El primer paso es mostrar la tabla con los valores de las diferentes etnias registradas y sus frecuencias. De
+esta manera se pueden observar si existe algunos problemas.
+
+```{r}
+table(datos$Anykids)
+```
+En este caso sólo es necesario utilizar la función `factor()` con la codificación adecuada de acuerdo al criterio: 1 igual a Yes, 0 igual a No
+
+```{r }
+
+datos[,var_error[4]] <- factor(datos[,var_error[4]], levels= c(0,1), labels= c("No","Yes"))
+
+table(datos[,var_error[4]])
+```
+
+
+##Variable Area 
+son "Rural" (1) o "Urban" (0).
+
+```{r}
+table(datos$Area)
+```
+En este caso sólo es necesario utilizar la función `factor()` con la codificación adecuada de acuerdo al criterio: 1 igual a Rural, 0 igual a Urban
+
+```{r passar_factor}
+
+datos[,var_error[8]] <- factor(datos[,var_error[8]], levels= c(0,1), labels= c("Urban","Rural"))
+
+table(datos[,var_error[8]])
+
+```
+
+Ahora podemos verificar que la variable `r var_error[8]` es del tipo **`r class(datos[,var_error[8]])`**.
+
+
+****
+# Imputación
+****
+
+
+Las variables que tienen valores perdidos son:
+
+**`r (v.p <-names(datos)[!complete.cases(t(datos))])`**
+
+
+```{r}
+v.missing <- which(colSums(is.na(datos)) >0 )
+v.missing
+
+```
+
+
+
+## Imputar los valores a partir de los k-vecinos más cercanos usando la distancia de Gower con la información de las variables cuantitativas y los datos de la misma etnia.
+
+
+Para imputar los valores perdidos dividimos el dataset por Ethnic (African American, Caucasian), para realizar la imputación de Agemenar.
+
+
+### Caso African American   Agemenar 
+
+```{r imputation_AF}
+#Filtrado por etnia
+df<- filter(datos, datos$Ethnic == "African American")
+df3<-df
+df2<- filter(datos, datos$Ethnic == "Caucasian")
+
+#Agemenar
+output<- kNN( df3[ -c(7,11)], variable="Agemenar", k=3 )
+df<-subset(output, select = 1:9) 
+df3$Agemenar<-as.numeric(df$Agemenar)
+
+```
+
+### Caso Numchild   Agefbo  Anykids
+
+En este caso utilizamos el conjunto de datos completo con los valores imputados de Agemenar
+
+```{r imputation}
+#Agrupamos el dataset
+datos2 <-rbind(df3, df2)
+
+df<- datos2
+
+#Agefbo
+output<- kNN( datos2[ -c(7,11)], variable="Agefbo", k=3 )
+df<-subset(output, select = 1:9) 
+datos2$Agefbo<-as.numeric(df$Agefbo)
+
+#Numchild
+output<- kNN( datos2[ -c(7,11)], variable="Numchild", k=3 )
+df<-subset(output, select = 1:9) 
+datos2$Numchild<-as.numeric(df$Numchild)
+
+#Anykids
+output<- kNN( datos2[ -c(11)], variable="Anykids", k=3 )
+df<-subset(output, select = 1:9) 
+datos2$Anykids<-as.factor(df$Anykids)
+
+colSums(is.na(datos2))
+```
+
+
+Como podemos observar no existen valores perdidos. 
+
+****
+# Tabla resumen de las variables cualitativas
+****
+
+Se presenta un resumen descriptivo de los valores de las variables cualitativas.
+
+```{r }
+options(knitr.kable.NA = '')
+
+kable(summary(datos2)[,var.factor],
+      digits=2, align='l', caption="Estadística descriptiva de variables cualitativas")
+```
+
+
+****
+# Tabla resumen de las variables cuantitativas
+****
+
+Se presenta una tabla de la tendencia central y dispersión de las variables cuantitativas. Usando medidas robustas y no robustas.
+
+```{r }
+mean.n <- as.vector(sapply( datos2[,vars.cuantitativas ],mean,na.rm=TRUE ) )
+std.n <- as.vector(sapply(datos2[,vars.cuantitativas ],sd, na.rm=TRUE))
+median.n <- as.vector(sapply(datos2[,vars.cuantitativas],median, na.rm=TRUE)) 
+mean.trim.0.05 <- as.vector(sapply(datos2[,vars.cuantitativas],mean, na.rm=TRUE, trim=0.05))
+mean.winsor.0.05 <- as.vector(sapply(datos2[,vars.cuantitativas],winsor.mean, na.rm=TRUE,trim=0.05))
+IQR.n <- as.vector(sapply(datos2[,vars.cuantitativas],IQR, na.rm=TRUE)) 
+mad.n <- as.vector(sapply(datos2[,vars.cuantitativas],mad, na.rm=TRUE))
+
+
+kable(data.frame(variables= names(datos2)[vars.cuantitativas],
+                 Media = mean.n,
+                 Mediana = median.n,
+                 Media.recort.0.05= mean.trim.0.05,
+                 Media.winsor.0.05= mean.winsor.0.05
+                 ),
+      digits=2, caption="Estimaciones de Tendencia Central")
+
+kable(data.frame(variables= names(datos2)[vars.cuantitativas],
+                 Desv.Standard = std.n,
+                 IQR = IQR.n,
+                 MAD = mad.n
+                 ),
+      digits=2, caption="Estimaciones de Dispersión")
+
+
+```
+
+
+Las variables **Numchild** y **Agefbo** son las que tienen valores más diferentes, las medidas robustas discrepan bastante de las ordinarias debido a que los datos contienen un gran número de ceros.
+
+****
+# Grabar a un archivo 
+****
+
+Grabar los datos preprocesados a un fichero final denominado: “ESTRADL_clean.csv"
+
+```{r}
+df.newfile <- "ESTRADL_clean.csv"
+write.csv(datos2, file=df.newfile, row.names = FALSE)
+
+```
+
+
+# Referencias 
+
+[1] D. Jankovich, «dinajankovich, My journey to Data Science,» [En línea]. Available: https://dinajankovich.com/2018/04/28/k-means-clustering-of-wine-data/. [Último acceso: 22 Octubre 2019].
+
+[2] Ihaka R. & Gentleman R. 1996. R: a language for data analysis and graphics. Journal of Computational and Graphical Statistics 5: 299–314.
+
